@@ -34,8 +34,11 @@ Propagandna mašina koja služi sistemu i blati narod za pare, dok se hrani govn
       canvas { 
         display: block; 
         margin: 0 auto; 
-        width: 100vw !important;
-        height: auto !important;
+        max-width: 100vw;
+        max-height: 100vh;
+        width: auto;
+        height: auto;
+        object-fit: contain;
         image-rendering: pixelated;
         image-rendering: -moz-crisp-edges;
         image-rendering: crisp-edges;
