@@ -7,7 +7,7 @@ Propagandna mašina koja služi sistemu i blati narod za pare, dok se hrani govn
 <head>
   <meta charset="UTF-8">
   <title>GOVNOJED</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <meta name="description" content="GOVNOJED - Igra o propagandnoj kurvi koja prodaje dušu đavolu za novac i jede govna po ceo dan.">
   <meta name="keywords" content="govnojed, propagandna mašina, duša, đavol, novac, govna, laž, blat, narod, pare">
   <meta name="author" content="GOVNOJED">
@@ -16,13 +16,57 @@ Propagandna mašina koja služi sistemu i blati narod za pare, dok se hrani govn
   <meta name="google" content="notranslate">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>💩</text></svg>">
   <script src="https://cdn.jsdelivr.net/npm/phaser@3/dist/phaser.min.js"></script>
-  <style>
-    html, body { margin: 0; padding: 0; height: 100%; background: #000; }
-    body { display: flex; justify-content: center; align-items: center; }
-    canvas { display: block; margin: 0 auto; }
-  </style>
+    <style>
+      html, body { 
+        margin: 0; 
+        padding: 0; 
+        height: 100%; 
+        background: #000; 
+        overflow: hidden;
+      }
+      body { 
+        display: flex; 
+        justify-content: center; 
+        align-items: center; 
+        min-height: 100vh;
+        width: 100%;
+      }
+      canvas { 
+        display: block; 
+        margin: 0 auto; 
+        width: 100vw !important;
+        height: auto !important;
+        image-rendering: pixelated;
+        image-rendering: -moz-crisp-edges;
+        image-rendering: crisp-edges;
+      }
+      
+      /* Mobile touch area - invisible overlay */
+      .mobile-touch-area {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        z-index: 1000;
+        pointer-events: auto;
+        user-select: none;
+        -webkit-user-select: none;
+        -webkit-touch-callout: none;
+        touch-action: manipulation;
+      }
+      
+      /* Hide on desktop */
+      @media (min-width: 768px) {
+        .mobile-touch-area {
+          display: none;
+        }
+      }
+    </style>
 </head>
 <body>
+  <!-- Mobile touch area -->
+  <div class="mobile-touch-area" id="mobileTouchArea"></div>
 <script>
 class StartScene extends Phaser.Scene {
   constructor() {
@@ -93,6 +137,12 @@ class StartScene extends Phaser.Scene {
 
     // Start button click handler
     this.startButton.on('pointerdown', () => {
+      this.scene.start('GameScene');
+    });
+    
+    // Mobile touch support for start screen
+    this.startButton.setInteractive();
+    this.startButton.on('pointerup', () => {
       this.scene.start('GameScene');
     });
 
@@ -197,6 +247,11 @@ class GameOverScene extends Phaser.Scene {
 
     // Add restart key
     this.restartKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.R);
+    
+    // Mobile touch support for restart
+    this.input.on('pointerdown', () => {
+      this.scene.start('GameScene');
+    });
   }
 
   update() {
@@ -269,6 +324,17 @@ class ParallaxScene extends Phaser.Scene {
     this.cursors = this.input.keyboard.createCursorKeys();
     this.space = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
     this.debugKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.D);
+    
+    // Mobile touch input
+    this.mobileInput = {
+      left: false,
+      right: false,
+      jump: false
+    };
+    this.mobileJumpPressed = false; // Track mobile jump state
+    this.touchStartX = 0; // Store touch start position
+    
+    this.setupMobileControls();
 
     // Movement bounds
     this.minX = width * 0.15;
@@ -443,6 +509,89 @@ class ParallaxScene extends Phaser.Scene {
     
     // Inform user that slow-motion ended
     this.showItemBubble('Slow motion ended!');
+  }
+
+  // Setup mobile touch controls
+  setupMobileControls() {
+    const touchArea = document.getElementById('mobileTouchArea');
+    if (!touchArea) return;
+
+    // Touch start - determine direction based on touch position relative to player
+    const handleTouchStart = (e) => {
+      e.preventDefault();
+      const touch = e.touches ? e.touches[0] : e;
+      const touchX = touch.clientX;
+      const canvasRect = this.sys.game.canvas.getBoundingClientRect();
+      const relativeX = touchX - canvasRect.left;
+      
+      // Scale touch coordinates from visual canvas size to game coordinates
+      const scaleX = 752 / canvasRect.width; // 752 is the original game width
+      const scaledTouchX = relativeX * scaleX;
+      
+      // Get player position on screen
+      const playerScreenX = this.char.x;
+      
+      // Determine if touch is left or right of player
+      if (scaledTouchX < playerScreenX) {
+        this.mobileInput.left = true;
+        this.mobileInput.right = false;
+      } else if (scaledTouchX > playerScreenX) {
+        this.mobileInput.right = true;
+        this.mobileInput.left = false;
+      } else {
+        // Touch is on player - jump
+        this.mobileInput.jump = true;
+        this.mobileInput.left = false;
+        this.mobileInput.right = false;
+      }
+    };
+
+    // Touch end - stop all movement
+    const handleTouchEnd = (e) => {
+      e.preventDefault();
+      this.mobileInput.left = false;
+      this.mobileInput.right = false;
+      this.mobileInput.jump = false;
+    };
+
+    // Mouse events for testing on desktop
+    const handleMouseDown = (e) => {
+      e.preventDefault();
+      const mouseX = e.clientX;
+      const canvasRect = this.sys.game.canvas.getBoundingClientRect();
+      const relativeX = mouseX - canvasRect.left;
+      
+      // Scale mouse coordinates from visual canvas size to game coordinates
+      const scaleX = 752 / canvasRect.width; // 752 is the original game width
+      const scaledMouseX = relativeX * scaleX;
+      
+      const playerScreenX = this.char.x;
+      
+      if (scaledMouseX < playerScreenX) {
+        this.mobileInput.left = true;
+        this.mobileInput.right = false;
+      } else if (scaledMouseX > playerScreenX) {
+        this.mobileInput.right = true;
+        this.mobileInput.left = false;
+      } else {
+        this.mobileInput.jump = true;
+        this.mobileInput.left = false;
+        this.mobileInput.right = false;
+      }
+    };
+
+    const handleMouseUp = (e) => {
+      e.preventDefault();
+      this.mobileInput.left = false;
+      this.mobileInput.right = false;
+      this.mobileInput.jump = false;
+    };
+
+    // Add event listeners
+    touchArea.addEventListener('touchstart', handleTouchStart);
+    touchArea.addEventListener('touchend', handleTouchEnd);
+    touchArea.addEventListener('mousedown', handleMouseDown);
+    touchArea.addEventListener('mouseup', handleMouseUp);
   }
 
   // Rectangle collision detection function
@@ -671,9 +820,9 @@ class ParallaxScene extends Phaser.Scene {
 
     // Character horizontal movement
     const currentMoveSpeed = this.speedBoostActive ? this.boostedSpeed : this.normalSpeed;
-    if (this.cursors.left.isDown) {
+    if (this.cursors.left.isDown || this.mobileInput.left) {
       this.char.x = Math.max(this.minX, this.char.x - currentMoveSpeed);
-    } else if (this.cursors.right.isDown) {
+    } else if (this.cursors.right.isDown || this.mobileInput.right) {
       this.char.x = Math.min(this.maxX, this.char.x + currentMoveSpeed);
     }
     
@@ -682,9 +831,10 @@ class ParallaxScene extends Phaser.Scene {
     this.charHeadCollider.y = this.char.y - 80;
 
     // Jump action
-    const isJumpPressed = Phaser.Input.Keyboard.JustDown(this.space) || this.cursors.up.isDown;
+    const isJumpPressed = Phaser.Input.Keyboard.JustDown(this.space) || this.cursors.up.isDown || (this.mobileInput.jump && !this.mobileJumpPressed);
     if (isJumpPressed && !this.isJumping) {
       this.isJumping = true;
+      this.mobileJumpPressed = this.mobileInput.jump; // Track mobile jump state
       this.char.play('jump');
       this.tweens.add({
         targets: this.char,
@@ -695,8 +845,14 @@ class ParallaxScene extends Phaser.Scene {
         onComplete: () => {
           this.char.play('run');
           this.isJumping = false;
+          this.mobileJumpPressed = false; // Reset mobile jump tracking
         }
       });
+    }
+    
+    // Reset mobile jump input after processing
+    if (this.mobileInput.jump) {
+      this.mobileInput.jump = false;
     }
 
     // Automatic kick detection
